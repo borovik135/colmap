@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # Copyright (c) 2018, ETH Zurich and UNC Chapel Hill.
 # All rights reserved.
 #
