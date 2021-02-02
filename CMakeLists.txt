@@ -424,7 +424,7 @@ if(IS_MSVC)
             DESTINATION "/")
 endif()
 
-# Install application meny entry under Linux/Unix.
+# Install application menu entry under Linux/Unix.
 if(UNIX AND NOT APPLE)
     install(FILES "doc/COLMAP.desktop" DESTINATION "share/applications")
 endif()
