@@ -139,7 +139,7 @@ if(CMAKE_BUILD_TYPE)
     message(STATUS "Build type specified as ${CMAKE_BUILD_TYPE}")
 else()
     message(STATUS "Build type not specified, using Release")
-    set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo)
     set(IS_DEBUG OFF)
 endif()
 
