@@ -1,4 +1,4 @@
-// Copyright (c) 2018, ETH Zurich and UNC Chapel Hill.
+// Copyright (c) 2022, ETH Zurich and UNC Chapel Hill.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -611,6 +611,7 @@ TwoViewGeometryVerifier::TwoViewGeometryVerifier(
       static_cast<size_t>(options_.max_num_trials);
   two_view_geometry_options_.ransac_options.min_inlier_ratio =
       options_.min_inlier_ratio;
+  two_view_geometry_options_.force_H_use = options_.planar_scene;
 }
 
 void TwoViewGeometryVerifier::Run() {
@@ -809,7 +810,7 @@ void SiftFeatureMatcher::Match(
   image_pair_ids.reserve(image_pairs.size());
 
   size_t num_outputs = 0;
-  for (const auto image_pair : image_pairs) {
+  for (const auto& image_pair : image_pairs) {
     // Avoid self-matches.
     if (image_pair.first == image_pair.second) {
       continue;

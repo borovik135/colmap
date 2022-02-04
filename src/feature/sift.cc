@@ -1,4 +1,4 @@
-// Copyright (c) 2018, ETH Zurich and UNC Chapel Hill.
+// Copyright (c) 2022, ETH Zurich and UNC Chapel Hill.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -36,7 +36,9 @@
 #include <memory>
 
 #include "FLANN/flann.hpp"
-#include "GL/glew.h"  // Needed if CUDA / GUI is not available.
+#if !defined(GUI_ENABLED) && !defined(CUDA_ENABLED)
+#include "GL/glew.h"
+#endif
 #include "SiftGPU/SiftGPU.h"
 #include "VLFeat/covdet.h"
 #include "VLFeat/sift.h"
