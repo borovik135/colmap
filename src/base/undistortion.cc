@@ -274,7 +274,10 @@ void COLMAPUndistorter::WritePatchMatchConfig() const {
   CHECK(file.is_open()) << path;
   for (const auto& image_name : image_names_) {
     file << image_name << std::endl;
-    file << "__auto__, " << num_patch_match_src_images_ << std::endl;
+    if (num_patch_match_src_images_ > 0)
+      file << "__auto__, " << num_patch_match_src_images_ << std::endl;
+    else
+      file << "__all__" << std::endl;
   }
 }
 
