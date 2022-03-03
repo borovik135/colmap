@@ -218,7 +218,7 @@ void SiftFeatureExtractor::Run() {
   resizer_queue_->Wait();
   resizer_queue_->Stop();
   for (auto& resizer : resizers_) {
-    resizer->Wait();
+    resizer->Wait(); // TODO YB: option to keep the image list order
   }
 
   extractor_queue_->Wait();
