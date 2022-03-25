@@ -522,7 +522,10 @@ template <typename T>
 bool BaseCameraModel<CameraModel>::HasBogusExtraParams(
     const std::vector<T>& params, const T max_extra_param) {
   for (const auto& idx : CameraModel::extra_params_idxs) {
-    if (std::abs(params[idx]) > max_extra_param) {
+    auto p = std::abs(params[idx]);
+    if (p > max_extra_param) {
+      std::clog << "WARNING: camera bogus extra param[" << idx << "]=" << p
+          << " > max_extra_param=" << max_extra_param << std::endl;
       return true;
     }
   }
