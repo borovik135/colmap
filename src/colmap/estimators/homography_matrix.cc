@@ -31,8 +31,8 @@
 
 #include "colmap/estimators/homography_matrix.h"
 
-#include "colmap/base/projection.h"
 #include "colmap/estimators/utils.h"
+#include "colmap/geometry/projection.h"
 #include "colmap/util/logging.h"
 
 #include <Eigen/Geometry>
@@ -86,9 +86,8 @@ std::vector<HomographyMatrixEstimator::M_t> HomographyMatrixEstimator::Estimate(
   const Eigen::VectorXd nullspace = svd.matrixV().col(8);
   Eigen::Map<const Eigen::Matrix3d> H_t(nullspace.data());
 
-  const std::vector<M_t> models = {points2_norm_matrix.inverse() *
-                                   H_t.transpose() * points1_norm_matrix};
-  return models;
+  return {points2_norm_matrix.inverse() * H_t.transpose() *
+          points1_norm_matrix};
 }
 
 void HomographyMatrixEstimator::Residuals(const std::vector<X_t>& points1,

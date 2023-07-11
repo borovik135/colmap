@@ -29,8 +29,7 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#ifndef COLMAP_SRC_BASE_COST_FUNCTIONS_H_
-#define COLMAP_SRC_BASE_COST_FUNCTIONS_H_
+#pragma once
 
 #include <Eigen/Core>
 #include <ceres/ceres.h>
@@ -295,7 +294,8 @@ class RelativePoseCostFunction {
 };
 
 inline void SetQuaternionManifold(ceres::Problem* problem, double* qvec) {
-#if CERES_VERSION_MAJOR >= 2 && CERES_VERSION_MINOR >= 1
+#if CERES_VERSION_MAJOR >= 3 || \
+    (CERES_VERSION_MAJOR == 2 && CERES_VERSION_MINOR >= 1)
   problem->SetManifold(qvec, new ceres::QuaternionManifold);
 #else
   problem->SetParameterization(qvec, new ceres::QuaternionParameterization);
@@ -306,7 +306,8 @@ inline void SetSubsetManifold(int size,
                               const std::vector<int>& constant_params,
                               ceres::Problem* problem,
                               double* params) {
-#if CERES_VERSION_MAJOR >= 2 && CERES_VERSION_MINOR >= 1
+#if CERES_VERSION_MAJOR >= 3 || \
+    (CERES_VERSION_MAJOR == 2 && CERES_VERSION_MINOR >= 1)
   problem->SetManifold(params,
                        new ceres::SubsetManifold(size, constant_params));
 #else
@@ -317,7 +318,8 @@ inline void SetSubsetManifold(int size,
 
 template <int size>
 inline void SetSphereManifold(ceres::Problem* problem, double* params) {
-#if CERES_VERSION_MAJOR >= 2 && CERES_VERSION_MINOR >= 1
+#if CERES_VERSION_MAJOR >= 3 || \
+    (CERES_VERSION_MAJOR == 2 && CERES_VERSION_MINOR >= 1)
   problem->SetManifold(params, new ceres::SphereManifold<size>);
 #else
   problem->SetParameterization(
@@ -326,5 +328,3 @@ inline void SetSphereManifold(ceres::Problem* problem, double* params) {
 }
 
 }  // namespace colmap
-
-#endif  // COLMAP_SRC_BASE_COST_FUNCTIONS_H_

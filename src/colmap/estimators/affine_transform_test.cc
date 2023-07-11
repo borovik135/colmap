@@ -29,19 +29,17 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#define TEST_NAME "estimators/affine_transform"
 #include "colmap/estimators/affine_transform.h"
 
-#include "colmap/util/testing.h"
-
 #include <Eigen/Geometry>
+#include <gtest/gtest.h>
 
-using namespace colmap;
+namespace colmap {
 
-BOOST_AUTO_TEST_CASE(TestAffineTransform) {
-  for (double x = 0; x < 1; x += 0.1) {
+TEST(AffineTransform, Nominal) {
+  for (int x = 0; x < 10; ++x) {
     Eigen::Matrix<double, 2, 3> A;
-    A << x, 0.2, 0.3, 30, 0.2, 0.1;
+    A << x / 10.0, 0.2, 0.3, 30, 0.2, 0.1;
 
     std::vector<Eigen::Vector2d> src;
     src.emplace_back(x, 0);
@@ -56,15 +54,17 @@ BOOST_AUTO_TEST_CASE(TestAffineTransform) {
     AffineTransformEstimator estimator;
     const auto models = estimator.Estimate(src, dst);
 
-    BOOST_CHECK_EQUAL(models.size(), 1);
+    EXPECT_EQ(models.size(), 1);
 
     std::vector<double> residuals;
     estimator.Residuals(src, dst, models[0], &residuals);
 
-    BOOST_CHECK_EQUAL(residuals.size(), 3);
+    EXPECT_EQ(residuals.size(), 3);
 
     for (size_t i = 0; i < 3; ++i) {
-      BOOST_CHECK_LT(residuals[i], 1e-6);
+      EXPECT_LT(residuals[i], 1e-6);
     }
   }
 }
+
+}  // namespace colmap

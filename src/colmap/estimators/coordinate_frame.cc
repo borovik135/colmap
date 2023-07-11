@@ -31,11 +31,11 @@
 
 #include "colmap/estimators/coordinate_frame.h"
 
-#include "colmap/base/gps.h"
-#include "colmap/base/line.h"
-#include "colmap/base/pose.h"
-#include "colmap/base/undistortion.h"
 #include "colmap/estimators/utils.h"
+#include "colmap/geometry/gps.h"
+#include "colmap/geometry/pose.h"
+#include "colmap/image/line.h"
+#include "colmap/image/undistortion.h"
 #include "colmap/optim/ransac.h"
 #include "colmap/util/logging.h"
 #include "colmap/util/misc.h"
@@ -105,7 +105,7 @@ Eigen::Vector3d FindBestConsensusAxis(const std::vector<Eigen::Vector3d>& axes,
   double best_inlier_distance_sum = std::numeric_limits<double>::max();
 
   for (size_t i = 0; i < axes.size(); ++i) {
-    const Eigen::Vector3d ref_axis = axes[i];
+    const Eigen::Vector3d& ref_axis = axes[i];
     double inlier_distance_sum = 0;
     inlier_idxs.clear();
     for (size_t j = 0; j < axes.size(); ++j) {
@@ -203,7 +203,7 @@ Eigen::Matrix3d EstimateManhattanWorldFrame(
     std::vector<Eigen::Vector3d> horizontal_lines;
     std::vector<Eigen::Vector3d> vertical_lines;
     for (size_t i = 0; i < line_segments.size(); ++i) {
-      const auto line_segment = line_segments[i];
+      const auto& line_segment = line_segments[i];
       const Eigen::Vector3d line_segment_start =
           line_segment.start.homogeneous();
       const Eigen::Vector3d line_segment_end = line_segment.end.homogeneous();

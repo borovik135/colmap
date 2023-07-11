@@ -58,10 +58,10 @@
 
 #include "colmap/estimators/generalized_relative_pose.h"
 
-#include "colmap/base/essential_matrix.h"
-#include "colmap/base/pose.h"
-#include "colmap/base/projection.h"
-#include "colmap/base/triangulation.h"
+#include "colmap/geometry/essential_matrix.h"
+#include "colmap/geometry/pose.h"
+#include "colmap/geometry/projection.h"
+#include "colmap/geometry/triangulation.h"
 #include "colmap/util/logging.h"
 #include "colmap/util/random.h"
 
@@ -137,8 +137,8 @@ Eigen::Vector3d ComputeRotationBetweenPoints(
 
   const Eigen::JacobiSVD<Eigen::Matrix3d> svd(
       Hcross, Eigen::ComputeFullU | Eigen::ComputeFullV);
-  const Eigen::Matrix3d V = svd.matrixV();
-  const Eigen::Matrix3d U = svd.matrixU();
+  const Eigen::Matrix3d& V = svd.matrixV();
+  const Eigen::Matrix3d& U = svd.matrixU();
 
   Eigen::Matrix3d R = V * U.transpose();
   if (R.determinant() < 0) {

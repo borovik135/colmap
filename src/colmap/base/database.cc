@@ -36,6 +36,7 @@
 #include "colmap/util/version.h"
 
 #include <fstream>
+#include <memory>
 
 namespace colmap {
 namespace {
@@ -257,6 +258,8 @@ Image ReadImageRow(sqlite3_stmt* sql_stmt) {
 const size_t Database::kMaxNumImages =
     static_cast<size_t>(std::numeric_limits<int32_t>::max());
 
+const std::string Database::kInMemoryDatabasePath = ":memory:";
+
 std::mutex Database::update_schema_mutex_;
 
 Database::Database() : database_(nullptr) {}
@@ -318,7 +321,7 @@ bool Database::ExistsImage(const image_t image_id) const {
   return ExistsRowId(sql_stmt_exists_image_id_, image_id);
 }
 
-bool Database::ExistsImageWithName(std::string name) const {
+bool Database::ExistsImageWithName(const std::string& name) const {
   return ExistsRowString(sql_stmt_exists_image_name_, name);
 }
 
@@ -470,9 +473,8 @@ FeatureDescriptors Database::ReadDescriptors(const image_t image_id) const {
   SQLITE3_CALL(sqlite3_bind_int64(sql_stmt_read_descriptors_, 1, image_id));
 
   const int rc = SQLITE3_CALL(sqlite3_step(sql_stmt_read_descriptors_));
-  const FeatureDescriptors descriptors =
-      ReadDynamicMatrixBlob<FeatureDescriptors>(
-          sql_stmt_read_descriptors_, rc, 0);
+  FeatureDescriptors descriptors = ReadDynamicMatrixBlob<FeatureDescriptors>(
+      sql_stmt_read_descriptors_, rc, 0);
 
   SQLITE3_CALL(sqlite3_reset(sql_stmt_read_descriptors_));
 
