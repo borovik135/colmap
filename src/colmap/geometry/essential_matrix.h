@@ -31,12 +31,12 @@
 
 #pragma once
 
+#include "colmap/geometry/rigid3.h"
 #include "colmap/util/types.h"
 
 #include <vector>
 
 #include <Eigen/Core>
-#include <ceres/ceres.h>
 
 namespace colmap {
 
@@ -84,18 +84,7 @@ void PoseFromEssentialMatrix(const Eigen::Matrix3d& E,
 // @param t             3x1 translation vector.
 //
 // @return              3x3 essential matrix.
-Eigen::Matrix3d EssentialMatrixFromPose(const Eigen::Matrix3d& R,
-                                        const Eigen::Vector3d& t);
-
-// Compose essential matrix from two absolute camera poses.
-//
-// @param proj_matrix1     3x4 projection matrix.
-// @param proj_matrix2     3x4 projection matrix.
-//
-// @return                 3x3 essential matrix.
-Eigen::Matrix3d EssentialMatrixFromAbsolutePoses(
-    const Eigen::Matrix3x4d& proj_matrix1,
-    const Eigen::Matrix3x4d& proj_matrix2);
+Eigen::Matrix3d EssentialMatrixFromPose(const Rigid3d& cam2_from_cam1);
 
 // Find optimal image points, such that:
 //
@@ -136,23 +125,5 @@ Eigen::Vector3d EpipoleFromEssentialMatrix(const Eigen::Matrix3d& E,
 //
 // @return       Inverted essential matrix.
 Eigen::Matrix3d InvertEssentialMatrix(const Eigen::Matrix3d& matrix);
-
-// Refine essential matrix.
-//
-// Decomposes the essential matrix into rotation and translation components
-// and refines the relative pose using the function `RefineRelativePose`.
-//
-// @param E                3x3 essential matrix.
-// @param points1          First set of corresponding points.
-// @param points2          Second set of corresponding points.
-// @param inlier_mask      Inlier mask for corresponding points.
-// @param options          Solver options.
-//
-// @return                 Flag indicating if solution is usable.
-bool RefineEssentialMatrix(const ceres::Solver::Options& options,
-                           const std::vector<Eigen::Vector2d>& points1,
-                           const std::vector<Eigen::Vector2d>& points2,
-                           const std::vector<char>& inlier_mask,
-                           Eigen::Matrix3d* E);
 
 }  // namespace colmap

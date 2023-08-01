@@ -32,9 +32,10 @@
 #include "colmap/sfm/incremental_mapper.h"
 
 #include "colmap/estimators/pose.h"
-#include "colmap/geometry/projection.h"
+#include "colmap/estimators/two_view_geometry.h"
 #include "colmap/geometry/triangulation.h"
-#include "colmap/image/bitmap.h"
+#include "colmap/scene/projection.h"
+#include "colmap/sensor/bitmap.h"
 #include "colmap/util/misc.h"
 
 #include <array>
@@ -289,13 +290,11 @@ bool IncrementalMapper::RegisterInitialImagePair(const Options& options,
     return false;
   }
 
-  image1.Qvec() = ComposeIdentityQuaternion();
-  image1.Tvec() = Eigen::Vector3d(0, 0, 0);
-  image2.Qvec() = prev_init_two_view_geometry_.qvec;
-  image2.Tvec() = prev_init_two_view_geometry_.tvec;
+  image1.CamFromWorld() = Rigid3d();
+  image2.CamFromWorld() = prev_init_two_view_geometry_.cam2_from_cam1;
 
-  const Eigen::Matrix3x4d proj_matrix1 = image1.ProjectionMatrix();
-  const Eigen::Matrix3x4d proj_matrix2 = image2.ProjectionMatrix();
+  const Eigen::Matrix3x4d cam_from_world1 = image1.CamFromWorld().ToMatrix();
+  const Eigen::Matrix3x4d cam_from_world2 = image2.CamFromWorld().ToMatrix();
   const Eigen::Vector3d proj_center1 = image1.ProjectionCenter();
   const Eigen::Vector3d proj_center2 = image2.ProjectionCenter();
 
@@ -322,17 +321,17 @@ bool IncrementalMapper::RegisterInitialImagePair(const Options& options,
   track.Element(0).image_id = image_id1;
   track.Element(1).image_id = image_id2;
   for (const auto& corr : corrs) {
-    const Eigen::Vector2d point1_N =
-        camera1.ImageToWorld(image1.Point2D(corr.point2D_idx1).XY());
-    const Eigen::Vector2d point2_N =
-        camera2.ImageToWorld(image2.Point2D(corr.point2D_idx2).XY());
+    const Eigen::Vector2d point2D1 =
+        camera1.CamFromImg(image1.Point2D(corr.point2D_idx1).xy);
+    const Eigen::Vector2d point2D2 =
+        camera2.CamFromImg(image2.Point2D(corr.point2D_idx2).xy);
     const Eigen::Vector3d& xyz =
-        TriangulatePoint(proj_matrix1, proj_matrix2, point1_N, point2_N);
+        TriangulatePoint(cam_from_world1, cam_from_world2, point2D1, point2D2);
     const double tri_angle =
         CalculateTriangulationAngle(proj_center1, proj_center2, xyz);
     if (tri_angle >= min_tri_angle_rad &&
-        HasPointPositiveDepth(proj_matrix1, xyz) &&
-        HasPointPositiveDepth(proj_matrix2, xyz)) {
+        HasPointPositiveDepth(cam_from_world1, xyz) &&
+        HasPointPositiveDepth(cam_from_world2, xyz)) {
       track.Element(0).point2D_idx = corr.point2D_idx1;
       track.Element(1).point2D_idx = corr.point2D_idx2;
       reconstruction_->AddPoint3D(xyz, track);
@@ -393,7 +392,7 @@ bool IncrementalMapper::RegisterNextImage(const Options& options,
       }
 
       // Avoid duplicate correspondences.
-      if (corr_point3D_ids.count(corr_point2D.Point3DId()) > 0) {
+      if (corr_point3D_ids.count(corr_point2D.point3D_id) > 0) {
         continue;
       }
 
@@ -408,11 +407,11 @@ bool IncrementalMapper::RegisterNextImage(const Options& options,
       }
 
       const Point3D& point3D =
-          reconstruction_->Point3D(corr_point2D.Point3DId());
+          reconstruction_->Point3D(corr_point2D.point3D_id);
 
-      tri_corrs.emplace_back(point2D_idx, corr_point2D.Point3DId());
-      corr_point3D_ids.insert(corr_point2D.Point3DId());
-      tri_points2D.push_back(point2D.XY());
+      tri_corrs.emplace_back(point2D_idx, corr_point2D.point3D_id);
+      corr_point3D_ids.insert(corr_point2D.point3D_id);
+      tri_points2D.push_back(point2D.xy);
       tri_points3D.push_back(point3D.XYZ());
     }
   }
@@ -490,8 +489,7 @@ bool IncrementalMapper::RegisterNextImage(const Options& options,
   if (!EstimateAbsolutePose(abs_pose_options,
                             tri_points2D,
                             tri_points3D,
-                            &image.Qvec(),
-                            &image.Tvec(),
+                            &image.CamFromWorld(),
                             &camera,
                             &num_inliers,
                             &inlier_mask)) {
@@ -510,8 +508,7 @@ bool IncrementalMapper::RegisterNextImage(const Options& options,
                           inlier_mask,
                           tri_points2D,
                           tri_points3D,
-                          &image.Qvec(),
-                          &image.Tvec(),
+                          &image.CamFromWorld(),
                           &camera)) {
     return false;
   }
@@ -591,7 +588,7 @@ IncrementalMapper::AdjustLocalBundle(
     if (options.fix_existing_images) {
       for (const image_t local_image_id : local_bundle) {
         if (existing_image_ids_.count(local_image_id)) {
-          ba_config.SetConstantPose(local_image_id);
+          ba_config.SetConstantCamPose(local_image_id);
         }
       }
     }
@@ -608,21 +605,21 @@ IncrementalMapper::AdjustLocalBundle(
       const size_t num_reg_images_for_camera =
           num_reg_images_per_camera_.at(camera_id_and_num_images_pair.first);
       if (camera_id_and_num_images_pair.second < num_reg_images_for_camera) {
-        ba_config.SetConstantCamera(camera_id_and_num_images_pair.first);
+        ba_config.SetConstantCamIntrinsics(camera_id_and_num_images_pair.first);
       }
     }
 
     // Fix 7 DOF to avoid scale/rotation/translation drift in bundle adjustment.
     if (local_bundle.size() == 1) {
-      ba_config.SetConstantPose(local_bundle[0]);
-      ba_config.SetConstantTvec(image_id, {0});
+      ba_config.SetConstantCamPose(local_bundle[0]);
+      ba_config.SetConstantCamPositions(image_id, {0});
     } else if (local_bundle.size() > 1) {
       const image_t image_id1 = local_bundle[local_bundle.size() - 1];
       const image_t image_id2 = local_bundle[local_bundle.size() - 2];
-      ba_config.SetConstantPose(image_id1);
+      ba_config.SetConstantCamPose(image_id1);
       if (!options.fix_existing_images ||
           !existing_image_ids_.count(image_id2)) {
-        ba_config.SetConstantTvec(image_id2, {0});
+        ba_config.SetConstantCamPositions(image_id2, {0});
       }
     }
 
@@ -703,16 +700,16 @@ bool IncrementalMapper::AdjustGlobalBundle(
   if (options.fix_existing_images) {
     for (const image_t image_id : reg_image_ids) {
       if (existing_image_ids_.count(image_id)) {
-        ba_config.SetConstantPose(image_id);
+        ba_config.SetConstantCamPose(image_id);
       }
     }
   }
 
   // Fix 7-DOFs of the bundle adjustment problem.
-  ba_config.SetConstantPose(reg_image_ids[0]);
+  ba_config.SetConstantCamPose(reg_image_ids[0]);
   if (!options.fix_existing_images ||
       !existing_image_ids_.count(reg_image_ids[1])) {
-    ba_config.SetConstantTvec(reg_image_ids[1], {0});
+    ba_config.SetConstantCamPositions(reg_image_ids[1], {0});
   }
 
   // Run bundle adjustment.
@@ -941,8 +938,8 @@ std::vector<image_t> IncrementalMapper::FindLocalBundle(
 
   for (const Point2D& point2D : image.Points2D()) {
     if (point2D.HasPoint3D()) {
-      point3D_ids.insert(point2D.Point3DId());
-      const Point3D& point3D = reconstruction_->Point3D(point2D.Point3DId());
+      point3D_ids.insert(point2D.point3D_id);
+      const Point3D& point3D = reconstruction_->Point3D(point2D.point3D_id);
       for (const TrackElement& track_el : point3D.Track().Elements()) {
         if (track_el.image_id != image_id) {
           shared_observations[track_el.image_id] += 1;
@@ -1039,9 +1036,9 @@ std::vector<image_t> IncrementalMapper::FindLocalBundle(
         // Collect the commonly observed 3D points.
         shared_points3D.clear();
         for (const Point2D& point2D : overlapping_image.Points2D()) {
-          if (point2D.HasPoint3D() && point3D_ids.count(point2D.Point3DId())) {
+          if (point2D.HasPoint3D() && point3D_ids.count(point2D.point3D_id)) {
             shared_points3D.push_back(
-                reconstruction_->Point3D(point2D.Point3DId()).XYZ());
+                reconstruction_->Point3D(point2D.point3D_id).XYZ());
           }
         }
 
@@ -1147,30 +1144,30 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
   std::vector<Eigen::Vector2d> points1;
   points1.reserve(image1.NumPoints2D());
   for (const auto& point : image1.Points2D()) {
-    points1.push_back(point.XY());
+    points1.push_back(point.xy);
   }
 
   std::vector<Eigen::Vector2d> points2;
   points2.reserve(image2.NumPoints2D());
   for (const auto& point : image2.Points2D()) {
-    points2.push_back(point.XY());
+    points2.push_back(point.xy);
   }
 
-  TwoViewGeometry two_view_geometry;
-  TwoViewGeometry::Options two_view_geometry_options;
+  TwoViewGeometryOptions two_view_geometry_options;
   two_view_geometry_options.ransac_options.min_num_trials = 30;
   two_view_geometry_options.ransac_options.max_error = options.init_max_error;
-  two_view_geometry.EstimateCalibrated(
+  TwoViewGeometry two_view_geometry = EstimateCalibratedTwoViewGeometry(
       camera1, points1, camera2, points2, matches, two_view_geometry_options);
 
-  if (!two_view_geometry.EstimateRelativePose(
-          camera1, points1, camera2, points2)) {
+  if (!EstimateTwoViewGeometryPose(
+          camera1, points1, camera2, points2, &two_view_geometry)) {
     return false;
   }
 
   if (static_cast<int>(two_view_geometry.inlier_matches.size()) >=
           options.init_min_num_inliers &&
-      std::abs(two_view_geometry.tvec.z()) < options.init_max_forward_motion &&
+      std::abs(two_view_geometry.cam2_from_cam1.translation.z()) <
+          options.init_max_forward_motion &&
       two_view_geometry.tri_angle > DegToRad(options.init_min_tri_angle)) {
     prev_init_image_pair_id_ = image_pair_id;
     prev_init_two_view_geometry_ = two_view_geometry;

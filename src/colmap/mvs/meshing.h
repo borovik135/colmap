@@ -106,7 +106,7 @@ bool PoissonMeshing(const PoissonMeshingOptions& options,
                     const std::string& input_path,
                     const std::string& output_path);
 
-#ifdef CGAL_ENABLED
+#if defined(COLMAP_CGAL_ENABLED)
 
 // Delaunay meshing of sparse and dense COLMAP reconstructions. This is an
 // implementation of the approach described in:
@@ -125,7 +125,7 @@ void DenseDelaunayMeshing(const DelaunayMeshingOptions& options,
                           const std::string& input_path,
                           const std::string& output_path);
 
-#endif  // CGAL_ENABLED
+#endif  // COLMAP_CGAL_ENABLED
 
 }  // namespace mvs
 }  // namespace colmap

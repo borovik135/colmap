@@ -70,8 +70,8 @@ TEST(ComputeSquaredSampsonError, Nominal) {
   points2.emplace_back(2, 1);
   points2.emplace_back(2, 2);
 
-  const Eigen::Matrix3d E = EssentialMatrixFromPose(Eigen::Matrix3d::Identity(),
-                                                    Eigen::Vector3d(1, 0, 0));
+  const Eigen::Matrix3d E = EssentialMatrixFromPose(
+      Rigid3d(Eigen::Quaterniond::Identity(), Eigen::Vector3d(1, 0, 0)));
 
   std::vector<double> residuals;
   ComputeSquaredSampsonError(points1, points2, E, &residuals);
@@ -80,6 +80,29 @@ TEST(ComputeSquaredSampsonError, Nominal) {
   EXPECT_EQ(residuals[0], 0);
   EXPECT_EQ(residuals[1], 0.5);
   EXPECT_EQ(residuals[2], 2);
+}
+
+TEST(ComputeSquaredReprojectionError, Nominal) {
+  std::vector<Eigen::Vector2d> points2D;
+  points2D.emplace_back(0, 0);
+  points2D.emplace_back(0, 0);
+  points2D.emplace_back(0, 0);
+  std::vector<Eigen::Vector3d> points3D;
+  points3D.emplace_back(2, 0, 1);
+  points3D.emplace_back(2, 1, 1);
+  points3D.emplace_back(2, 2, 1);
+
+  const Rigid3d cam_from_world(Eigen::Quaterniond::Identity(),
+                               Eigen::Vector3d(1, 0, 0));
+
+  std::vector<double> residuals;
+  ComputeSquaredReprojectionError(
+      points2D, points3D, cam_from_world.ToMatrix(), &residuals);
+
+  EXPECT_EQ(residuals.size(), 3);
+  EXPECT_EQ(residuals[0], 9);
+  EXPECT_EQ(residuals[1], 10);
+  EXPECT_EQ(residuals[2], 13);
 }
 
 }  // namespace colmap

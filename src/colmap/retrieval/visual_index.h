@@ -32,16 +32,16 @@
 #pragma once
 
 #include "colmap/feature/types.h"
+#include "colmap/math/math.h"
 #include "colmap/retrieval/inverted_file.h"
 #include "colmap/retrieval/inverted_index.h"
 #include "colmap/retrieval/vote_and_verify.h"
 #include "colmap/util/endian.h"
 #include "colmap/util/logging.h"
-#include "colmap/util/math.h"
 
-#include "flann/flann.hpp"
 #include <Eigen/Core>
 #include <boost/heap/fibonacci_heap.hpp>
+#include <flann/flann.hpp>
 
 namespace colmap {
 namespace retrieval {
@@ -462,7 +462,7 @@ void VisualIndex<kDescType, kDescDim, kEmbeddingDim>::Query(
               match_found = true;
               FeatureGeometryMatch match;
               match.geometry1 = entry2.second.first->geometry;
-              match.geometries2.push_back(entry2.second.second->geometry);
+              match.geometry2 = entry2.second.second->geometry;
               matches.push_back(match);
 
               handles2.erase(idx2);

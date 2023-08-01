@@ -31,15 +31,15 @@
 
 #include "colmap/controllers/automatic_reconstruction.h"
 
+#include "colmap/controllers/feature_extraction.h"
+#include "colmap/controllers/feature_matching.h"
 #include "colmap/controllers/incremental_mapper.h"
-#include "colmap/feature/extraction.h"
-#include "colmap/feature/matching.h"
+#include "colmap/controllers/option_manager.h"
 #include "colmap/image/undistortion.h"
 #include "colmap/mvs/fusion.h"
 #include "colmap/mvs/meshing.h"
 #include "colmap/mvs/patch_match.h"
 #include "colmap/util/misc.h"
-#include "colmap/util/option_manager.h"
 
 namespace colmap {
 
@@ -106,13 +106,13 @@ AutomaticReconstructionController::AutomaticReconstructionController(
   option_manager_.sift_matching->gpu_index = options_.gpu_index;
   option_manager_.patch_match_stereo->gpu_index = options_.gpu_index;
 
-  feature_extractor_ = std::make_unique<SiftFeatureExtractor>(
+  feature_extractor_ = CreateFeatureExtractorController(
       reader_options, *option_manager_.sift_extraction);
 
-  exhaustive_matcher_ = std::make_unique<ExhaustiveFeatureMatcher>(
-      *option_manager_.exhaustive_matching,
-      *option_manager_.sift_matching,
-      *option_manager_.database_path);
+  exhaustive_matcher_ =
+      CreateExhaustiveFeatureMatcher(*option_manager_.exhaustive_matching,
+                                     *option_manager_.sift_matching,
+                                     *option_manager_.database_path);
 
   if (!options_.vocab_tree_path.empty()) {
     option_manager_.sequential_matching->loop_detection = true;
@@ -120,18 +120,18 @@ AutomaticReconstructionController::AutomaticReconstructionController(
         options_.vocab_tree_path;
   }
 
-  sequential_matcher_ = std::make_unique<SequentialFeatureMatcher>(
-      *option_manager_.sequential_matching,
-      *option_manager_.sift_matching,
-      *option_manager_.database_path);
+  sequential_matcher_ =
+      CreateSequentialFeatureMatcher(*option_manager_.sequential_matching,
+                                     *option_manager_.sift_matching,
+                                     *option_manager_.database_path);
 
   if (!options_.vocab_tree_path.empty()) {
     option_manager_.vocab_tree_matching->vocab_tree_path =
         options_.vocab_tree_path;
-    vocab_tree_matcher_ = std::make_unique<VocabTreeFeatureMatcher>(
-        *option_manager_.vocab_tree_matching,
-        *option_manager_.sift_matching,
-        *option_manager_.database_path);
+    vocab_tree_matcher_ =
+        CreateVocabTreeFeatureMatcher(*option_manager_.vocab_tree_matching,
+                                      *option_manager_.sift_matching,
+                                      *option_manager_.database_path);
   }
 }
 
@@ -233,7 +233,8 @@ void AutomaticReconstructionController::RunSparseMapper() {
   active_thread_ = nullptr;
 
   CreateDirIfNotExists(sparse_path);
-  reconstruction_manager_->Write(sparse_path, &option_manager_);
+  reconstruction_manager_->Write(sparse_path);
+  option_manager_.Write(JoinPaths(sparse_path, "project.ini"));
 }
 
 void AutomaticReconstructionController::RunDenseMapper() {
@@ -283,7 +284,7 @@ void AutomaticReconstructionController::RunDenseMapper() {
 
     // Patch match stereo.
 
-#ifdef CUDA_ENABLED
+#if defined(COLMAP_CUDA_ENABLED)
     {
       mvs::PatchMatchController patch_match_controller(
           *option_manager_.patch_match_stereo, dense_path, "COLMAP", "");
@@ -292,13 +293,13 @@ void AutomaticReconstructionController::RunDenseMapper() {
       patch_match_controller.Wait();
       active_thread_ = nullptr;
     }
-#else   // CUDA_ENABLED
+#else   // COLMAP_CUDA_ENABLED
     std::cout
         << std::endl
         << "WARNING: Skipping patch match stereo because CUDA is not available."
         << std::endl;
     return;
-#endif  // CUDA_ENABLED
+#endif  // COLMAP_CUDA_ENABLED
 
     if (IsStopped()) {
       return;
@@ -340,17 +341,17 @@ void AutomaticReconstructionController::RunDenseMapper() {
         mvs::PoissonMeshing(
             *option_manager_.poisson_meshing, fused_path, meshing_path);
       } else if (options_.mesher == Mesher::DELAUNAY) {
-#ifdef CGAL_ENABLED
+#if defined(COLMAP_CGAL_ENABLED)
         mvs::DenseDelaunayMeshing(
             *option_manager_.delaunay_meshing, dense_path, meshing_path);
-#else  // CGAL_ENABLED
+#else  // COLMAP_CGAL_ENABLED
         std::cout << std::endl
                   << "WARNING: Skipping Delaunay meshing because CGAL is "
                      "not available."
                   << std::endl;
         return;
 
-#endif  // CGAL_ENABLED
+#endif  // COLMAP_CGAL_ENABLED
       }
     }
   }

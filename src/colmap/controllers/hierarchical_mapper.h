@@ -31,9 +31,9 @@
 
 #pragma once
 
-#include "colmap/base/reconstruction_manager.h"
-#include "colmap/base/scene_clustering.h"
 #include "colmap/controllers/incremental_mapper.h"
+#include "colmap/scene/reconstruction_manager.h"
+#include "colmap/scene/scene_clustering.h"
 #include "colmap/util/threading.h"
 
 #include <memory>
@@ -60,13 +60,17 @@ class HierarchicalMapperController : public Thread {
     // The number of workers used to reconstruct clusters in parallel.
     int num_workers = -1;
 
+    // Options for clustering the scene graph.
+    SceneClustering::Options clustering_options;
+
+    // Options used to reconstruction each cluster individually.
+    IncrementalMapperOptions incremental_options;
+
     bool Check() const;
   };
 
   HierarchicalMapperController(
       const Options& options,
-      const SceneClustering::Options& clustering_options,
-      std::shared_ptr<const IncrementalMapperOptions> mapper_options,
       std::shared_ptr<ReconstructionManager> reconstruction_manager);
 
  private:

@@ -31,13 +31,13 @@
 
 #include "colmap/exe/gui.h"
 
+#include "colmap/controllers/option_manager.h"
 #include "colmap/util/opengl_utils.h"
-#include "colmap/util/option_manager.h"
 
 namespace colmap {
 
 int RunGraphicalUserInterface(int argc, char** argv) {
-#ifndef GUI_ENABLED
+#if !defined(COLMAP_GUI_ENABLED)
   std::cerr << "ERROR: Cannot start colmap GUI; colmap was built without GUI "
                "support or QT dependency is missing."
             << std::endl;

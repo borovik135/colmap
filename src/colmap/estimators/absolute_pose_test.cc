@@ -33,9 +33,9 @@
 
 #include "colmap/estimators/essential_matrix.h"
 #include "colmap/geometry/pose.h"
-#include "colmap/geometry/similarity_transform.h"
+#include "colmap/geometry/rigid3.h"
+#include "colmap/math/random.h"
 #include "colmap/optim/ransac.h"
-#include "colmap/util/random.h"
 
 #include <Eigen/Core>
 #include <gtest/gtest.h>
@@ -43,17 +43,16 @@
 namespace colmap {
 
 TEST(AbsolutePose, P3P) {
-  SetPRNGSeed(0);
-
-  std::vector<Eigen::Vector3d> points3D;
-  points3D.emplace_back(1, 1, 1);
-  points3D.emplace_back(0, 1, 1);
-  points3D.emplace_back(3, 1.0, 4);
-  points3D.emplace_back(3, 1.1, 4);
-  points3D.emplace_back(3, 1.2, 4);
-  points3D.emplace_back(3, 1.3, 4);
-  points3D.emplace_back(3, 1.4, 4);
-  points3D.emplace_back(2, 1, 7);
+  const std::vector<Eigen::Vector3d> points3D = {
+      Eigen::Vector3d(1, 1, 1),
+      Eigen::Vector3d(0, 1, 1),
+      Eigen::Vector3d(3, 1.0, 4),
+      Eigen::Vector3d(3, 1.1, 4),
+      Eigen::Vector3d(3, 1.2, 4),
+      Eigen::Vector3d(3, 1.3, 4),
+      Eigen::Vector3d(3, 1.4, 4),
+      Eigen::Vector3d(2, 1, 7),
+  };
 
   auto points3D_faulty = points3D;
   for (size_t i = 0; i < points3D.size(); ++i) {
@@ -64,15 +63,15 @@ TEST(AbsolutePose, P3P) {
   for (double qx = 0; qx < 1; qx += 0.2) {
     // NOLINTNEXTLINE(clang-analyzer-security.FloatLoopCounter)
     for (double tx = 0; tx < 1; tx += 0.1) {
-      const SimilarityTransform3 orig_tform(
-          1, Eigen::Vector4d(1, qx, 0, 0), Eigen::Vector3d(tx, 0, 0));
+      const Rigid3d expected_cam_from_world(
+          Eigen::Quaterniond(1, qx, 0, 0).normalized(),
+          Eigen::Vector3d(tx, 0, 0));
 
       // Project points to camera coordinate system.
       std::vector<Eigen::Vector2d> points2D;
       for (size_t i = 0; i < points3D.size(); ++i) {
-        Eigen::Vector3d point3D_camera = points3D[i];
-        orig_tform.TransformPoint(&point3D_camera);
-        points2D.push_back(point3D_camera.hnormalized());
+        points2D.push_back(
+            (expected_cam_from_world * points3D[i]).hnormalized());
       }
 
       RANSACOptions options;
@@ -81,11 +80,8 @@ TEST(AbsolutePose, P3P) {
       const auto report = ransac.Estimate(points2D, points3D);
 
       EXPECT_TRUE(report.success);
-
-      // Test if correct transformation has been determined.
-      const double matrix_diff =
-          (orig_tform.Matrix().topLeftCorner<3, 4>() - report.model).norm();
-      EXPECT_TRUE(matrix_diff < 1e-2);
+      EXPECT_LT((expected_cam_from_world.ToMatrix() - report.model).norm(),
+                1e-2);
 
       // Test residuals of exact points.
       std::vector<double> residuals;
@@ -105,17 +101,16 @@ TEST(AbsolutePose, P3P) {
 }
 
 TEST(AbsolutePose, EPNP) {
-  SetPRNGSeed(0);
-
-  std::vector<Eigen::Vector3d> points3D;
-  points3D.emplace_back(1, 1, 1);
-  points3D.emplace_back(0, 1, 1);
-  points3D.emplace_back(3, 1.0, 4);
-  points3D.emplace_back(3, 1.1, 4);
-  points3D.emplace_back(3, 1.2, 4);
-  points3D.emplace_back(3, 1.3, 4);
-  points3D.emplace_back(3, 1.4, 4);
-  points3D.emplace_back(2, 1, 7);
+  const std::vector<Eigen::Vector3d> points3D = {
+      Eigen::Vector3d(1, 1, 1),
+      Eigen::Vector3d(0, 1, 1),
+      Eigen::Vector3d(3, 1.0, 4),
+      Eigen::Vector3d(3, 1.1, 4),
+      Eigen::Vector3d(3, 1.2, 4),
+      Eigen::Vector3d(3, 1.3, 4),
+      Eigen::Vector3d(3, 1.4, 4),
+      Eigen::Vector3d(2, 1, 7),
+  };
 
   auto points3D_faulty = points3D;
   for (size_t i = 0; i < points3D.size(); ++i) {
@@ -126,15 +121,15 @@ TEST(AbsolutePose, EPNP) {
   for (double qx = 0; qx < 1; qx += 0.2) {
     // NOLINTNEXTLINE(clang-analyzer-security.FloatLoopCounter)
     for (double tx = 0; tx < 1; tx += 0.1) {
-      const SimilarityTransform3 orig_tform(
-          1, Eigen::Vector4d(1, qx, 0, 0), Eigen::Vector3d(tx, 0, 0));
+      const Rigid3d expected_cam_from_world(
+          Eigen::Quaterniond(1, qx, 0, 0).normalized(),
+          Eigen::Vector3d(tx, 0, 0));
 
       // Project points to camera coordinate system.
       std::vector<Eigen::Vector2d> points2D;
       for (size_t i = 0; i < points3D.size(); ++i) {
-        Eigen::Vector3d point3D_camera = points3D[i];
-        orig_tform.TransformPoint(&point3D_camera);
-        points2D.push_back(point3D_camera.hnormalized());
+        points2D.push_back(
+            (expected_cam_from_world * points3D[i]).hnormalized());
       }
 
       RANSACOptions options;
@@ -143,11 +138,8 @@ TEST(AbsolutePose, EPNP) {
       const auto report = ransac.Estimate(points2D, points3D);
 
       EXPECT_TRUE(report.success);
-
-      // Test if correct transformation has been determined.
-      const double matrix_diff =
-          (orig_tform.Matrix().topLeftCorner<3, 4>() - report.model).norm();
-      EXPECT_TRUE(matrix_diff < 1e-3);
+      EXPECT_LT((expected_cam_from_world.ToMatrix() - report.model).norm(),
+                1e-4);
 
       // Test residuals of exact points.
       std::vector<double> residuals;

@@ -31,10 +31,11 @@
 
 #include "colmap/geometry/essential_matrix.h"
 
-#include "colmap/estimators/pose.h"
 #include "colmap/geometry/pose.h"
 
 #include <array>
+
+#include <glog/logging.h>
 
 namespace colmap {
 
@@ -90,24 +91,9 @@ void PoseFromEssentialMatrix(const Eigen::Matrix3d& E,
   }
 }
 
-Eigen::Matrix3d EssentialMatrixFromPose(const Eigen::Matrix3d& R,
-                                        const Eigen::Vector3d& t) {
-  return CrossProductMatrix(t.normalized()) * R;
-}
-
-Eigen::Matrix3d EssentialMatrixFromAbsolutePoses(
-    const Eigen::Matrix3x4d& proj_matrix1,
-    const Eigen::Matrix3x4d& proj_matrix2) {
-  const Eigen::Matrix3d R1 = proj_matrix1.leftCols<3>();
-  const Eigen::Matrix3d R2 = proj_matrix2.leftCols<3>();
-  const Eigen::Vector3d t1 = proj_matrix1.rightCols<1>();
-  const Eigen::Vector3d t2 = proj_matrix2.rightCols<1>();
-
-  // Relative transformation between to cameras.
-  const Eigen::Matrix3d R = R2 * R1.transpose();
-  const Eigen::Vector3d t = t2 - R * t1;
-
-  return EssentialMatrixFromPose(R, t);
+Eigen::Matrix3d EssentialMatrixFromPose(const Rigid3d& cam2_from_cam1) {
+  return CrossProductMatrix(cam2_from_cam1.translation.normalized()) *
+         cam2_from_cam1.rotation.toRotationMatrix();
 }
 
 void FindOptimalImageObservations(const Eigen::Matrix3d& E,
@@ -130,7 +116,7 @@ void FindOptimalImageObservations(const Eigen::Matrix3d& E,
   const double a = n1.transpose() * E_tilde * n2;
   const double b = (n1.squaredNorm() + n2.squaredNorm()) / 2.0;
   const double c = point1h.transpose() * E * point2h;
-  const double d = sqrt(b * b - a * c);
+  const double d = std::sqrt(b * b - a * c);
   double lambda = c / (b + d);
 
   n1 -= E_tilde * lambda * n1;
@@ -157,66 +143,6 @@ Eigen::Vector3d EpipoleFromEssentialMatrix(const Eigen::Matrix3d& E,
 
 Eigen::Matrix3d InvertEssentialMatrix(const Eigen::Matrix3d& E) {
   return E.transpose();
-}
-
-bool RefineEssentialMatrix(const ceres::Solver::Options& options,
-                           const std::vector<Eigen::Vector2d>& points1,
-                           const std::vector<Eigen::Vector2d>& points2,
-                           const std::vector<char>& inlier_mask,
-                           Eigen::Matrix3d* E) {
-  CHECK_EQ(points1.size(), points2.size());
-  CHECK_EQ(points1.size(), inlier_mask.size());
-
-  // Extract inlier points for decomposing the essential matrix into
-  // rotation and translation components.
-
-  size_t num_inliers = 0;
-  for (const auto inlier : inlier_mask) {
-    if (inlier) {
-      num_inliers += 1;
-    }
-  }
-
-  std::vector<Eigen::Vector2d> inlier_points1(num_inliers);
-  std::vector<Eigen::Vector2d> inlier_points2(num_inliers);
-  size_t j = 0;
-  for (size_t i = 0; i < inlier_mask.size(); ++i) {
-    if (inlier_mask[i]) {
-      inlier_points1[j] = points1[i];
-      inlier_points2[j] = points2[i];
-      j += 1;
-    }
-  }
-
-  // Extract relative pose from essential matrix.
-
-  Eigen::Matrix3d R;
-  Eigen::Vector3d tvec;
-  std::vector<Eigen::Vector3d> points3D;
-  PoseFromEssentialMatrix(
-      *E, inlier_points1, inlier_points2, &R, &tvec, &points3D);
-
-  Eigen::Vector4d qvec = RotationMatrixToQuaternion(R);
-
-  if (points3D.size() == 0) {
-    return false;
-  }
-
-  // Refine essential matrix, use all points so that refinement is able to
-  // consider points as inliers that were originally outliers.
-
-  const bool refinement_success =
-      RefineRelativePose(options, inlier_points1, inlier_points2, &qvec, &tvec);
-
-  if (!refinement_success) {
-    return false;
-  }
-
-  // Compose refined essential matrix.
-  const Eigen::Matrix3d rot_mat = QuaternionToRotationMatrix(qvec);
-  *E = EssentialMatrixFromPose(rot_mat, tvec);
-
-  return true;
 }
 
 }  // namespace colmap

@@ -32,10 +32,9 @@
 #include "colmap/estimators/generalized_absolute_pose.h"
 
 #include "colmap/geometry/pose.h"
-#include "colmap/geometry/projection.h"
-#include "colmap/geometry/similarity_transform.h"
+#include "colmap/geometry/rigid3.h"
 #include "colmap/optim/ransac.h"
-#include "colmap/util/random.h"
+#include "colmap/scene/projection.h"
 
 #include <array>
 
@@ -45,8 +44,6 @@
 namespace colmap {
 
 TEST(GeneralizedAbsolutePose, Estimate) {
-  SetPRNGSeed(0);
-
   std::vector<Eigen::Vector3d> points3D;
   points3D.emplace_back(1, 1, 1);
   points3D.emplace_back(0, 1, 1);
@@ -66,39 +63,32 @@ TEST(GeneralizedAbsolutePose, Estimate) {
   for (double qx = 0; qx < 1; qx += 0.2) {
     // NOLINTNEXTLINE(clang-analyzer-security.FloatLoopCounter)
     for (double tx = 0; tx < 1; tx += 0.1) {
-      const int kRefTform = 1;
-      const int kNumTforms = 3;
+      const int kRefCamIdx = 1;
+      const int kNumCams = 3;
 
-      const std::array<SimilarityTransform3, kNumTforms> orig_tforms = {{
-          SimilarityTransform3(
-              1, Eigen::Vector4d(1, qx, 0, 0), Eigen::Vector3d(tx, -0.1, 0)),
-          SimilarityTransform3(
-              1, Eigen::Vector4d(1, qx, 0, 0), Eigen::Vector3d(tx, 0, 0)),
-          SimilarityTransform3(
-              1, Eigen::Vector4d(1, qx, 0, 0), Eigen::Vector3d(tx, 0.1, 0)),
+      const std::array<Rigid3d, kNumCams> cams_from_world = {{
+          Rigid3d(Eigen::Quaterniond(1, qx, 0, 0).normalized(),
+                  Eigen::Vector3d(tx, -0.1, 0)),
+          Rigid3d(Eigen::Quaterniond(1, qx, 0, 0).normalized(),
+                  Eigen::Vector3d(tx, 0, 0)),
+          Rigid3d(Eigen::Quaterniond(1, qx, 0, 0).normalized(),
+                  Eigen::Vector3d(tx, 0.1, 0)),
       }};
 
-      std::array<Eigen::Matrix3x4d, kNumTforms> rel_tforms;
-      for (size_t i = 0; i < kNumTforms; ++i) {
-        Eigen::Vector4d rel_qvec;
-        Eigen::Vector3d rel_tvec;
-        ComputeRelativePose(orig_tforms[kRefTform].Rotation(),
-                            orig_tforms[kRefTform].Translation(),
-                            orig_tforms[i].Rotation(),
-                            orig_tforms[i].Translation(),
-                            &rel_qvec,
-                            &rel_tvec);
-        rel_tforms[i] = ComposeProjectionMatrix(rel_qvec, rel_tvec);
+      const Rigid3d& rig_from_world = cams_from_world[kRefCamIdx];
+
+      std::array<Rigid3d, kNumCams> cams_from_rig;
+      for (size_t i = 0; i < kNumCams; ++i) {
+        cams_from_rig[i] = cams_from_world[i] * Inverse(rig_from_world);
       }
 
       // Project points to camera coordinate system.
       std::vector<GP3PEstimator::X_t> points2D;
       for (size_t i = 0; i < points3D.size(); ++i) {
-        Eigen::Vector3d point3D_camera = points3D[i];
-        orig_tforms[i % kNumTforms].TransformPoint(&point3D_camera);
         points2D.emplace_back();
-        points2D.back().rel_tform = rel_tforms[i % kNumTforms];
-        points2D.back().xy = point3D_camera.hnormalized();
+        points2D.back().cam_from_rig = cams_from_rig[i % kNumCams];
+        points2D.back().ray_in_cam =
+            (cams_from_world[i % kNumCams] * points3D[i]).normalized();
       }
 
       RANSACOptions options;
@@ -107,25 +97,23 @@ TEST(GeneralizedAbsolutePose, Estimate) {
       const auto report = ransac.Estimate(points2D, points3D);
 
       EXPECT_TRUE(report.success);
-
-      // Test if correct transformation has been determined.
-      const double matrix_diff =
-          (orig_tforms[kRefTform].Matrix().topLeftCorner<3, 4>() - report.model)
-              .norm();
-      EXPECT_TRUE(matrix_diff < 1e-2);
+      EXPECT_LT((rig_from_world.ToMatrix() - report.model.ToMatrix()).norm(),
+                1e-2)
+          << report.model.ToMatrix() << "\n\n"
+          << rig_from_world.ToMatrix();
 
       // Test residuals of exact points.
       std::vector<double> residuals;
       ransac.estimator.Residuals(points2D, points3D, report.model, &residuals);
       for (size_t i = 0; i < residuals.size(); ++i) {
-        EXPECT_TRUE(residuals[i] < 1e-10);
+        EXPECT_LT(residuals[i], 1e-10);
       }
 
       // Test residuals of faulty points.
       ransac.estimator.Residuals(
           points2D, points3D_faulty, report.model, &residuals);
       for (size_t i = 0; i < residuals.size(); ++i) {
-        EXPECT_TRUE(residuals[i] > 1e-10);
+        EXPECT_GT(residuals[i], 1e-10);
       }
     }
   }

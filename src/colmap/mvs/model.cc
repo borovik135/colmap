@@ -31,11 +31,11 @@
 
 #include "colmap/mvs/model.h"
 
-#include "colmap/base/reconstruction.h"
-#include "colmap/camera/models.h"
 #include "colmap/geometry/pose.h"
-#include "colmap/geometry/projection.h"
 #include "colmap/geometry/triangulation.h"
+#include "colmap/scene/projection.h"
+#include "colmap/scene/reconstruction.h"
+#include "colmap/sensor/models.h"
 #include "colmap/util/misc.h"
 
 namespace colmap {
@@ -70,8 +70,8 @@ void Model::ReadFromCOLMAP(const std::string& path,
     const Eigen::Matrix<float, 3, 3, Eigen::RowMajor> K =
         camera.CalibrationMatrix().cast<float>();
     const Eigen::Matrix<float, 3, 3, Eigen::RowMajor> R =
-        QuaternionToRotationMatrix(image.Qvec()).cast<float>();
-    const Eigen::Vector3f T = image.Tvec().cast<float>();
+        image.CamFromWorld().rotation.toRotationMatrix().cast<float>();
+    const Eigen::Vector3f T = image.CamFromWorld().translation.cast<float>();
 
     images.emplace_back(image_path,
                         camera.Width(),

@@ -31,11 +31,11 @@
 
 #pragma once
 
-#include "colmap/base/database.h"
-#include "colmap/base/reconstruction.h"
-#include "colmap/geometry/projection.h"
+#include "colmap/controllers/option_manager.h"
+#include "colmap/scene/database.h"
+#include "colmap/scene/projection.h"
+#include "colmap/scene/reconstruction.h"
 #include "colmap/ui/qt_utils.h"
-#include "colmap/util/option_manager.h"
 
 #include <QtCore>
 #include <QtWidgets>
@@ -128,8 +128,8 @@ class DatabaseImageViewerWidget : public FeatureImageViewerWidget {
   QTableWidgetItem* camera_id_item_;
   QTableWidgetItem* camera_model_item_;
   QTableWidgetItem* camera_params_item_;
-  QTableWidgetItem* qvec_item_;
-  QTableWidgetItem* tvec_item_;
+  QTableWidgetItem* rotation_item_;
+  QTableWidgetItem* translation_item_;
   QTableWidgetItem* dimensions_item_;
   QTableWidgetItem* num_points2D_item_;
   QTableWidgetItem* num_points3D_item_;
