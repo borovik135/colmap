@@ -34,7 +34,10 @@
 #include "colmap/image/undistortion.h"
 #include "colmap/scene/reconstruction.h"
 #include "colmap/sfm/incremental_mapper.h"
+#include "colmap/sfm/observation_manager.h"
+#include "colmap/util/base_controller.h"
 #include "colmap/util/misc.h"
+#include "colmap/util/timer.h"
 
 namespace colmap {
 namespace {
@@ -56,13 +59,13 @@ std::vector<std::pair<image_t, image_t>> ReadStereoImagePairs(
 
   for (const auto& line : stereo_pair_lines) {
     const std::vector<std::string> names = StringSplit(line, " ");
-    CHECK_EQ(names.size(), 2);
+    THROW_CHECK_EQ(names.size(), 2);
 
     const Image* image1 = reconstruction.FindImageWithName(names[0]);
     const Image* image2 = reconstruction.FindImageWithName(names[1]);
 
-    CHECK_NOTNULL(image1);
-    CHECK_NOTNULL(image2);
+    THROW_CHECK_NOTNULL(image1);
+    THROW_CHECK_NOTNULL(image2);
 
     stereo_pairs.emplace_back(image1->ImageId(), image2->ImageId());
   }
@@ -170,8 +173,9 @@ int RunImageFilterer(int argc, char** argv) {
 
   const size_t num_reg_images = reconstruction.NumRegImages();
 
-  reconstruction.FilterImages(
-      min_focal_length_ratio, max_focal_length_ratio, max_extra_param);
+  ObservationManager(reconstruction)
+      .FilterImages(
+          min_focal_length_ratio, max_focal_length_ratio, max_extra_param);
 
   std::vector<image_t> filtered_image_ids;
   for (const auto& image : reconstruction.Images()) {
@@ -228,8 +232,7 @@ int RunImageRectifier(int argc, char** argv) {
                                  *options.image_path,
                                  output_path,
                                  stereo_pairs);
-  rectifier.Start();
-  rectifier.Wait();
+  rectifier.Run();
 
   return EXIT_SUCCESS;
 }
@@ -287,8 +290,11 @@ int RunImageRegistrator(int argc, char** argv) {
     PrintHeading1("Registering image #" + std::to_string(image.first) + " (" +
                   std::to_string(reconstruction->NumRegImages() + 1) + ")");
 
-    LOG(INFO) << "\n=> Image sees " << image.second.NumVisiblePoints3D()
-              << " / " << image.second.NumObservations() << " points";
+    LOG(INFO) << "\n=> Image sees "
+              << mapper.ObservationManager().NumVisiblePoints3D(image.first)
+              << " / "
+              << mapper.ObservationManager().NumObservations(image.first)
+              << " points";
 
     mapper.RegisterNextImage(mapper_options, image.first);
   }
@@ -369,7 +375,7 @@ int RunImageUndistorter(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  std::unique_ptr<Thread> undistorter;
+  std::unique_ptr<BaseController> undistorter;
   if (output_type == "COLMAP") {
     undistorter =
         std::make_unique<COLMAPUndistorter>(undistort_camera_options,
@@ -395,8 +401,7 @@ int RunImageUndistorter(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  undistorter->Start();
-  undistorter->Wait();
+  undistorter->Run();
 
   return EXIT_SUCCESS;
 }
@@ -432,7 +437,7 @@ int RunImageUndistorterStandalone(int argc, char** argv) {
 
   {
     std::ifstream file(input_file);
-    CHECK(file.is_open()) << input_file;
+    THROW_CHECK_FILE_OPEN(file, input_file);
 
     std::string line;
     std::vector<std::string> lines;
@@ -472,20 +477,19 @@ int RunImageUndistorterStandalone(int argc, char** argv) {
         camera.params.push_back(std::stold(item));
       }
 
-      CHECK(camera.VerifyParams());
+      THROW_CHECK(camera.VerifyParams());
 
       image_names_and_cameras.emplace_back(image_name, camera);
     }
   }
 
-  std::unique_ptr<Thread> undistorter;
+  std::unique_ptr<BaseController> undistorter;
   undistorter.reset(new PureImageUndistorter(undistort_camera_options,
                                              *options.image_path,
                                              output_path,
                                              image_names_and_cameras));
 
-  undistorter->Start();
-  undistorter->Wait();
+  undistorter->Run();
 
   return EXIT_SUCCESS;
 }

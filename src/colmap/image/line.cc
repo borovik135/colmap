@@ -31,9 +31,13 @@
 
 #include "colmap/util/logging.h"
 
+#ifdef COLMAP_LSD_ENABLED
 extern "C" {
 #include "thirdparty/LSD/lsd.h"
 }
+#endif
+
+#include <memory>
 
 namespace colmap {
 namespace {
@@ -44,6 +48,7 @@ struct RawDeleter {
 
 }  // namespace
 
+#ifdef COLMAP_LSD_ENABLED
 std::vector<LineSegment> DetectLineSegments(const Bitmap& bitmap,
                                             const double min_length) {
   const double min_length_squared = min_length * min_length;
@@ -82,10 +87,11 @@ std::vector<LineSegment> DetectLineSegments(const Bitmap& bitmap,
 
   return segments;
 }
+#endif
 
 std::vector<LineSegmentOrientation> ClassifyLineSegmentOrientations(
     const std::vector<LineSegment>& segments, const double tolerance) {
-  CHECK_LE(tolerance, 0.5);
+  THROW_CHECK_LE(tolerance, 0.5);
 
   std::vector<LineSegmentOrientation> orientations;
   orientations.reserve(segments.size());
